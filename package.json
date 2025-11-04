@@ -1,0 +1,23 @@
+{
+  "name": "smart-travel-assistant",
+  "version": "1.0.0",
+  "description": "Hệ thống du lịch thông minh với AI và các API tích hợp",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "server:dev": "cd server && npm run dev",
+    "client:dev": "cd client && npm start",
+    "server:start": "cd server && npm start",
+    "client:start": "cd client && npm start",
+    "server:install": "cd server && npm install",
+    "client:install": "cd client && npm install",
+    "install-all": "npm run server:install && npm run client:install",
+    "build": "cd client && npm run build"
+  },
+  "keywords": ["travel", "ai", "assistant", "tourism", "planning"],
+  "author": "THHT Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
