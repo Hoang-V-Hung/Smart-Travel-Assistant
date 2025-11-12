@@ -14,13 +14,34 @@ const transformGeoapifyFeature = (feature) => {
   // Lập bản đồ các danh mục từ Geoapify sang enum của bạn
   // Đây là một ví dụ, bạn cần mở rộng nó cho đầy đủ
   const getCategory = (categories) => {
-    if (!categories || categories.length === 0) return 'nature'; // Mặc định
-    if (categories.includes('natural.beach')) return 'beach';
-    if (categories.includes('natural.mountain_range')) return 'mountain';
-    if (categories.includes('tourism.sights.castle') || categories.includes('tourism.sights.ruins')) return 'historical';
-    if (categories.includes('tourism.sights.city_block')) return 'city';
-    return 'nature'; // Mặc định nếu không khớp
-  };
+    if (!categories || categories.length === 0) return 'nature';
+
+    // Tạo một bản đồ ưu tiên, từ cụ thể đến chung chung
+    const categoryPriorityMap = {
+      'natural.beach': 'beach',
+      'natural.mountain_range': 'mountain',
+      'tourism.sights.castle': 'historical',
+      'tourism.sights.ruins': 'historical',
+      'tourism.sights': 'historical',
+      'religion': 'cultural',
+      'entertainment.culture': 'cultural',
+      'sport': 'adventure',
+      'activity': 'adventure',
+      'administrative.city_level': 'city',
+      'building.tourism': 'city',
+      'natural': 'nature',
+      'tourism': 'adventure'
+    };
+    
+    // Duyệt qua danh sách ưu tiên
+    for (const key in categoryPriorityMap) {
+      if (categories.includes(key)) {
+        return categoryPriorityMap[key]; // Trả về danh mục đầu tiên tìm thấy
+      }
+    }
+
+    return 'nature'; // Mặc định cuối cùng
+};
 
   const newDestination = {
     // ---- Dữ liệu lấy trực tiếp từ Geoapify ----

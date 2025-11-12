@@ -37,13 +37,9 @@ import {
   AttachMoney,
   AccessTime,
   Star,
-  FilterList,
   ViewList,
   GridView,
-  Info,
   Directions,
-  Hotel,
-  Restaurant,
 } from '@mui/icons-material';
 import axios from 'axios';
 
@@ -74,7 +70,7 @@ const Destinations: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedBudget, setSelectedBudget] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
   const [tabValue, setTabValue] = useState(0);
 
@@ -105,6 +101,7 @@ const Destinations: React.FC = () => {
   const fetchDestinations = async () => {
     try {
       setLoading(true);
+      setError('');
       const params = new URLSearchParams();
       if (searchQuery) params.append('q', searchQuery);
       if (selectedCategory) params.append('category', selectedCategory);
@@ -113,7 +110,7 @@ const Destinations: React.FC = () => {
       const response = await axios.get(`http://localhost:5000/api/destinations/search?${params}`);
       setDestinations(response.data.destinations);
     } catch (err: any) {
-      setError('Không thể tải danh sách điểm đến');
+      setError('Không thể tải danh sách điểm đến. Vui lòng thử lại sau.');
     } finally {
       setLoading(false);
     }
@@ -144,10 +141,17 @@ const Destinations: React.FC = () => {
   };
 
   const getBudgetLabel = (budget: { min: number; max: number }) => {
-    if (budget.max >= 20000000) {
+    if (!budget) return 'Không xác định';
+    if (budget.min >= 20000000) {
       return `Trên ${formatCurrency(budget.min)}`;
     }
     return `${formatCurrency(budget.min)} - ${formatCurrency(budget.max)}`;
+  };
+  
+  const formatTag = (tag: string) => {
+    const parts = tag.split('.');
+    const lastPart = parts[parts.length - 1];
+    return lastPart.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
   };
 
   const renderDestinationCard = (destination: Destination) => (
@@ -216,7 +220,7 @@ const Destinations: React.FC = () => {
           {destination.tags.slice(0, 2).map((tag, index) => (
             <Chip
               key={index}
-              label={tag}
+              label={formatTag(tag)}
               size="small"
               variant="outlined"
             />
@@ -262,7 +266,7 @@ const Destinations: React.FC = () => {
               {destination.description}
             </Typography>
             
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Rating value={destination.rating.average} readOnly size="small" />
                 <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
@@ -293,7 +297,7 @@ const Destinations: React.FC = () => {
               {destination.tags.slice(0, 3).map((tag, index) => (
                 <Chip
                   key={index}
-                  label={tag}
+                  label={formatTag(tag)}
                   size="small"
                   variant="outlined"
                 />
@@ -305,15 +309,48 @@ const Destinations: React.FC = () => {
     </Card>
   );
 
-  if (loading) {
-    return (
-      <Container maxWidth="lg" sx={{ mt: 4, textAlign: 'center' }}>
-        <CircularProgress />
-        <Typography sx={{ mt: 2 }}>Đang tải danh sách điểm đến...</Typography>
-      </Container>
-    );
-  }
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '40vh' }}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+    
+    if (destinations.length === 0) {
+      return (
+        <Paper sx={{ p: 4, textAlign: 'center' }}>
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            Không tìm thấy điểm đến nào
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Hãy thử thay đổi từ khóa tìm kiếm hoặc bộ lọc
+          </Typography>
+        </Paper>
+      );
+    }
 
+    return (
+      <Grid container spacing={3}>
+        {destinations.map((destination) => (
+          <Grid
+            item
+            xs={12}
+            sm={viewMode === 'grid' ? 6 : 12}
+            md={viewMode === 'grid' ? 4 : 12}
+            key={destination._id}
+          >
+            {viewMode === 'grid' ? renderDestinationCard(destination) : renderDestinationList(destination)}
+          </Grid>
+        ))}
+      </Grid>
+    );
+  }; // <--- SỬA LỖI Ở ĐÂY: HÀM renderContent KẾT THÚC TẠI ĐÂY
+
+  // =====================================================================
+  // HÀM RETURN CHÍNH CỦA COMPONENT BẮT ĐẦU TỪ ĐÂY
+  // =====================================================================
   return (
     <>
       <PageHeader
@@ -406,30 +443,7 @@ const Destinations: React.FC = () => {
         </Typography>
       </Box>
 
-      {destinations.length === 0 ? (
-        <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            Không tìm thấy điểm đến nào
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Hãy thử thay đổi từ khóa tìm kiếm hoặc bộ lọc
-          </Typography>
-        </Paper>
-      ) : (
-        <Grid container spacing={3}>
-          {destinations.map((destination) => (
-            <Grid
-              item
-              xs={12}
-              sm={viewMode === 'grid' ? 6 : 12}
-              md={viewMode === 'grid' ? 4 : 12}
-              key={destination._id}
-            >
-              {viewMode === 'grid' ? renderDestinationCard(destination) : renderDestinationList(destination)}
-            </Grid>
-          ))}
-        </Grid>
-      )}
+      {renderContent()}
 
       {/* Destination Detail Dialog */}
       <Dialog
@@ -505,7 +519,7 @@ const Destinations: React.FC = () => {
                       </Typography>
                       <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                         {selectedDestination.tags.map((tag, index) => (
-                          <Chip key={index} label={tag} size="small" variant="outlined" />
+                          <Chip key={index} label={formatTag(tag)} size="small" variant="outlined" />
                         ))}
                       </Box>
                     </Box>
@@ -576,9 +590,9 @@ const Destinations: React.FC = () => {
           </>
         )}
       </Dialog>
-    </Container>
+      </Container>
     </>
   );
-};
+}; 
 
 export default Destinations;
