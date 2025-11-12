@@ -128,7 +128,10 @@ const destinationSchema = new mongoose.Schema({
 destinationSchema.index({ location: '2dsphere' });
 destinationSchema.index({ category: 1, popularity: -1 });
 destinationSchema.index({ country: 1, city: 1 });
-destinationSchema.index({ name: 'text', description: 'text', tags: 'text' });
+destinationSchema.index(
+  { name: 'text', description: 'text', tags: 'text' },
+  { default_language: 'none', language_override: 'language_field_that_does_not_exist' }
+);
 destinationSchema.index({ rating: -1 });
 destinationSchema.index({ isActive: 1 });
 

@@ -6,7 +6,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const connectDB = require('./config/database');
-
+const destinationRoutes = require('./routes/destinationRoutes');
 // Load environment variables from .env file
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
@@ -43,7 +43,9 @@ app.use('/api/', limiter);
 // Routes - Chỉ giữ các routes liên quan đến 3 tính năng chính
 app.use('/api/auth', require('./routes/auth')); // Authentication (cần thiết)
 app.use('/api/ai', require('./routes/ai')); // OpenAI/GPT API (Tính năng 1)
-app.use('/api/trips', require('./routes/trips')); // Quản lý kế hoạch du lịch
+app.use('/api/trips', require('./routes/trips')); 
+// geoapify
+app.use('/api/destinations', destinationRoutes);// Quản lý kế hoạch du lịch
 // Routes cho Google Maps, Skyscanner, TripAdvisor sẽ được thêm sau khi tích hợp
 
 // Health check
