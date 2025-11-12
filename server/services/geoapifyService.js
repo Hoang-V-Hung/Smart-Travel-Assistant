@@ -36,8 +36,17 @@ const transformGeoapifyFeature = (feature) => {
     
     // ---- Dữ liệu phải tạo giả (mock) vì Geoapify không cung cấp ----
     description: props.formatted || `Một địa điểm hấp dẫn tại ${props.city}, ${props.country}.`,
-    budgetRange: { min: 1500000, max: 6000000 }, // Ví dụ
-    recommendedDuration: Math.floor(Math.random() * 5) + 3, // Random 3-7 ngày
+    budgetRange: (() => {
+    const budgetOptions = [
+      { min: 500000, max: 1000000 },
+      { min: 1000000, max: 5000000 },
+      { min: 5000000, max: 10000000 },
+      { min: 10000000, max: 20000000 },
+      { min: 20000000, max: 50000000 }
+    ];
+    return budgetOptions[Math.floor(Math.random() * budgetOptions.length)];
+})(),
+recommendedDuration: Math.floor(Math.random() * 5) + 3, // Random 3-7 ngày
     images: [`https://picsum.photos/seed/${props.place_id}/1024/768`], // Ảnh placeholder
     rating: {
       average: (Math.random() * (4.8 - 3.5) + 3.5).toFixed(1), // Random rating 3.5 - 4.8
@@ -54,53 +63,98 @@ const transformGeoapifyFeature = (feature) => {
  * @param {object} options - Tùy chọn tìm kiếm { query, category }.
  * @returns {Promise<Array>} - Một mảng các documents của Destination.
  */
-const searchAndCacheDestinations = async ({ query, category }) => {
-  const dbQuery = { isActive: true };
-  if (query) {
-    dbQuery.$text = { $search: query };
-  }
-  if (category) {
-    dbQuery.category = category;
-  }
+// server/services/geoapifyService.js
 
-  // 1. Kiểm tra trong DB trước
+// ... (hàm transformGeoapifyFeature không đổi)
+
+const searchAndCacheDestinations = async ({ query, category, budget }) => {
+  // ... (phần kiểm tra cache trong DB không đổi)
+  const dbQuery = { isActive: true };
+  if (query) { dbQuery.$text = { $search: query }; }
+  if (category) { dbQuery.category = category; }
+ if (budget && budget.includes('-')) {
+    const [minStr, maxStr] = budget.split('-');
+    const min = parseInt(minStr, 10);
+    const max = maxStr ? parseInt(maxStr, 10) : Infinity;
+
+    // Sử dụng đúng tên biến 'min' và 'max'
+    if (!isNaN(min) && max !== Infinity) {
+      dbQuery['budgetRange.min'] = { $lt: max };
+      dbQuery['budgetRange.max'] = { $gt: min };
+    } else if (!isNaN(min) && max === Infinity) {
+      dbQuery['budgetRange.min'] = { $gte: min };
+    }
+
+  }
   const existingDestinations = await Destination.find(dbQuery).limit(20);
+  if (budget) {
+    console.log('💰 Budget filter applied. Returning DB results only.');
+    return existingDestinations;
+  }
   if (existingDestinations.length > 0) {
     console.log('✅ Found destinations in local DB cache.');
     return existingDestinations;
   }
+  // ...
 
-  // 2. Nếu không có, gọi Geoapify
   console.log('🔍 No cache found. Calling Geoapify API...');
   const apiKey = process.env.GEOAPIFY_API_KEY;
   if (!apiKey) throw new Error('GEOAPIFY_API_KEY is not defined.');
 
-  const params = { apiKey, limit: 20 };
-  if (query) params.text = query;
-  if (category) params.categories = category;
+  // ====================== PHIÊN BẢN HOÀN CHỈNH CUỐI CÙNG ======================
   
-  // Mặc định tìm các điểm thu hút khách du lịch nếu không có query
-  if (!query && !category) {
-    params.categories = 'tourism.attraction';
-    params.filter = 'countryCode:vn'; // Chỉ tìm ở Việt Nam
+  const baseUrl = 'https://api.geoapify.com/v2/places';
+  
+  const params = new URLSearchParams({
+    apiKey: apiKey,
+    limit: '20',
+    // Luôn dùng bias để ưu tiên kết quả ở Việt Nam
+    bias: 'proximity:105.854444,21.027778', // Tọa độ Hà Nội
+  });
+
+  // Xử lý tham số 'category' từ frontend
+  if (category) {
+    const categoryMap = {
+      'beach': 'natural.beach',
+      'mountain': 'natural.mountain_range',
+      'historical': 'tourism.sights.castle,tourism.sights.ruins',
+      'cultural': 'tourism.sights.place_of_worship,tourism.sights.theatre',
+      'city': 'administrative.city_level,building.tourism',
+      'nature': 'natural',
+      'adventure': 'sport'
+    };
+    if (categoryMap[category]) {
+      params.append('categories', categoryMap[category]);
+    }
+  } else {
+    // Nếu không có category, đặt một giá trị mặc định
+    params.append('categories', 'tourism.attraction');
   }
 
-  const response = await axios.get('https://api.geoapify.com/v2/places', { params });
+  // Xử lý tham số 'query' (tìm kiếm văn bản)
+  if (query) {
+    params.append('text', query);
+  }
 
+  const requestUrl = `${baseUrl}?${params.toString()}`;
+  
+  console.log('>>> Final Request URL:', requestUrl);
+
+  const response = await axios.get(requestUrl);
+
+  // ========================================================================
+
+  // ... (phần xử lý response và lưu vào DB không đổi)
   if (!response.data.features || response.data.features.length === 0) {
-    return []; // Không tìm thấy kết quả từ Geoapify
+    return [];
   }
-
-  // 3. Chuyển đổi dữ liệu
+  
   const destinationsToCreate = response.data.features.map(transformGeoapifyFeature);
-
-  // 4. Lưu kết quả mới vào DB (cache)
   try {
     const newDestinations = await Destination.insertMany(destinationsToCreate, { ordered: false });
     console.log(`💾 Cached ${newDestinations.length} new destinations to DB.`);
     return newDestinations;
   } catch (error) {
-    // Bỏ qua lỗi trùng lặp key nếu có
     if (error.code === 11000) {
         console.warn('⚠️ Some destinations already existed in DB.');
         return await Destination.find(dbQuery).limit(20);
