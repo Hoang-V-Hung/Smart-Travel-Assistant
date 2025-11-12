@@ -7,10 +7,6 @@ import {
   CardContent,
   Button,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Chip,
   Alert,
   Stepper,
@@ -28,6 +24,8 @@ import {
   DialogActions,
   Divider,
   InputAdornment,
+  Autocomplete,
+  CircularProgress,
 } from '@mui/material';
 import Grid from '../components/Grid';
 import PageHeader from '../components/PageHeader';
@@ -40,15 +38,15 @@ import {
   Delete,
   Edit,
   FlightTakeoff,
-  Hotel,
-  Restaurant,
   Directions,
 } from '@mui/icons-material';
 import { Email, Phone } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-interface Destination {
+// Interface cho một điểm đến trong kế hoạch chuyến đi
+interface TripDestination {
+  _id?: string;
   name: string;
   arrivalDate: string;
   departureDate: string;
@@ -65,6 +63,15 @@ interface Destination {
   }>;
 }
 
+// Interface cho kết quả tìm kiếm điểm đến từ DB
+interface DBSearchResult {
+  _id: string;
+  name: string;
+  city: string;
+  country: string;
+}
+
+
 const TripPlanner: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [tripData, setTripData] = useState({
@@ -75,12 +82,12 @@ const TripPlanner: React.FC = () => {
     budget: '',
     travelers: [{ name: '', email: '', phone: '' }],
   });
-  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [destinations, setDestinations] = useState<TripDestination[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [openDestinationDialog, setOpenDestinationDialog] = useState(false);
-  const [editingDestination, setEditingDestination] = useState<Destination | null>(null);
-  const [newDestination, setNewDestination] = useState<Destination>({
+  const [editingDestination, setEditingDestination] = useState<TripDestination | null>(null);
+  const [newDestination, setNewDestination] = useState<TripDestination>({
     name: '',
     arrivalDate: '',
     departureDate: '',
@@ -88,6 +95,20 @@ const TripPlanner: React.FC = () => {
   });
   const [formErrors, setFormErrors] = useState<{ [k: string]: string }>({});
   const navigate = useNavigate();
+
+  // State cho Autocomplete tìm kiếm
+  const [openSearch, setOpenSearch] = useState(false);
+  const [searchOptions, setSearchOptions] = useState<readonly DBSearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const steps = [
     'Thông tin cơ bản',
@@ -157,7 +178,7 @@ const TripPlanner: React.FC = () => {
     setOpenDestinationDialog(true);
   };
 
-  const handleEditDestination = (destination: Destination) => {
+  const handleEditDestination = (destination: TripDestination) => {
     setEditingDestination(destination);
     setNewDestination(destination);
     setOpenDestinationDialog(true);
@@ -165,9 +186,11 @@ const TripPlanner: React.FC = () => {
 
   const handleSaveDestination = () => {
     if (!newDestination.name || !newDestination.arrivalDate || !newDestination.departureDate) {
+      // Có thể thêm thông báo lỗi cho người dùng ở đây
       return;
     }
     if (new Date(newDestination.departureDate) < new Date(newDestination.arrivalDate)) {
+      // Có thể thêm thông báo lỗi cho người dùng ở đây
       return;
     }
     if (editingDestination) {
@@ -217,8 +240,6 @@ const TripPlanner: React.FC = () => {
     return Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1);
   };
 
-  const getTotalActivities = () => destinations.reduce((sum, d) => sum + (d.activities?.length || 0), 0);
-
   const getEstimatedCost = () => destinations.reduce((sum, d) => sum + (d.activities || []).reduce((a, act) => a + (act.cost || 0), 0), 0);
 
   const renderStepContent = (step: number) => {
@@ -229,7 +250,7 @@ const TripPlanner: React.FC = () => {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                variant="outlined" // <--- ĐÃ SỬA
+                variant="outlined"
                 label="Tên chuyến du lịch"
                 value={tripData.title}
                 onChange={(e) => handleTripDataChange('title', e.target.value)}
@@ -246,7 +267,7 @@ const TripPlanner: React.FC = () => {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                variant="outlined" // <--- ĐÃ SỬA
+                variant="outlined"
                 label="Mô tả"
                 multiline
                 rows={3}
@@ -258,7 +279,7 @@ const TripPlanner: React.FC = () => {
             <Grid item xs={6}>
               <TextField
                 fullWidth
-                variant="outlined" // <--- ĐÃ SỬA
+                variant="outlined"
                 label="Ngày bắt đầu"
                 type="date"
                 value={tripData.startDate}
@@ -276,7 +297,7 @@ const TripPlanner: React.FC = () => {
             <Grid item xs={6}>
               <TextField
                 fullWidth
-                variant="outlined" // <--- ĐÃ SỬA
+                variant="outlined"
                 label="Ngày kết thúc"
                 type="date"
                 value={tripData.endDate}
@@ -294,7 +315,7 @@ const TripPlanner: React.FC = () => {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                variant="outlined" // <--- ĐÃ SỬA
+                variant="outlined"
                 label="Ngân sách (VND)"
                 type="number"
                 value={tripData.budget}
@@ -329,7 +350,7 @@ const TripPlanner: React.FC = () => {
                         value={traveler.name}
                         onChange={(e) => handleTravelerChange(index, 'name', e.target.value)}
                         placeholder="VD: Nguyễn Văn A"
-                        variant="outlined" // Thêm ở đây cho nhất quán
+                        variant="outlined"
                       />
                     </Grid>
                     <Grid item xs={12} sm={4}>
@@ -346,10 +367,10 @@ const TripPlanner: React.FC = () => {
                             </InputAdornment>
                           )
                         }}
-                        variant="outlined" // Thêm ở đây cho nhất quán
+                        variant="outlined"
                       />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={3}>
                       <TextField
                         fullWidth
                         label="Số điện thoại"
@@ -362,20 +383,20 @@ const TripPlanner: React.FC = () => {
                             </InputAdornment>
                           )
                         }}
-                        variant="outlined" // Thêm ở đây cho nhất quán
+                        variant="outlined"
                       />
                     </Grid>
+                    <Grid item xs={12} sm={1} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                      {tripData.travelers.length > 1 && (
+                        <IconButton
+                          color="error"
+                          onClick={() => removeTraveler(index)}
+                        >
+                          <Delete />
+                        </IconButton>
+                      )}
+                    </Grid>
                   </Grid>
-                  {tripData.travelers.length > 1 && (
-                    <Box sx={{ mt: 2, textAlign: 'right' }}>
-                      <IconButton
-                        color="error"
-                        onClick={() => removeTraveler(index)}
-                      >
-                        <Delete />
-                      </IconButton>
-                    </Box>
-                  )}
                 </CardContent>
               </Card>
             ))}
@@ -383,7 +404,6 @@ const TripPlanner: React.FC = () => {
               variant="outlined"
               startIcon={<Add />}
               onClick={addTraveler}
-              sx={{ mt: 2 }}
             >
               Thêm người đi cùng
             </Button>
@@ -427,11 +447,6 @@ const TripPlanner: React.FC = () => {
                               {new Date(destination.arrivalDate).toLocaleDateString('vi-VN')} -{' '}
                               {new Date(destination.departureDate).toLocaleDateString('vi-VN')}
                             </Typography>
-                            {destination.activities?.length > 0 && (
-                              <Typography variant="caption" color="text.secondary">
-                                {destination.activities.length} hoạt động
-                              </Typography>
-                            )}
                           </Box>
                           <Box>
                             <IconButton
@@ -462,7 +477,7 @@ const TripPlanner: React.FC = () => {
         return (
           <Box>
             <Typography variant="h6" gutterBottom>
-              Lịch trình chi tiết
+              Lịch trình chi tiết (Tùy chọn)
             </Typography>
             {destinations.map((destination, index) => (
               <Card key={index} sx={{ mb: 3 }}>
@@ -474,27 +489,6 @@ const TripPlanner: React.FC = () => {
                     {new Date(destination.arrivalDate).toLocaleDateString('vi-VN')} -{' '}
                     {new Date(destination.departureDate).toLocaleDateString('vi-VN')}
                   </Typography>
-                  
-                  {destination.activities.length > 0 && (
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle2" gutterBottom>
-                        Hoạt động:
-                      </Typography>
-                      <List dense>
-                        {destination.activities.map((activity, actIndex) => (
-                          <ListItem key={actIndex}>
-                            <ListItemIcon>
-                              <Directions />
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={activity.name}
-                              secondary={`${activity.time} - ${activity.cost.toLocaleString('vi-VN')} VND`}
-                            />
-                          </ListItem>
-                        ))}
-                      </List>
-                    </Box>
-                  )}
                 </CardContent>
               </Card>
             ))}
@@ -515,14 +509,14 @@ const TripPlanner: React.FC = () => {
                 <Typography variant="body1" color="text.secondary" gutterBottom>
                   {tripData.description}
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap' }}>
                   <Chip
                     icon={<CalendarToday />}
                     label={`${new Date(tripData.startDate).toLocaleDateString('vi-VN')} - ${new Date(tripData.endDate).toLocaleDateString('vi-VN')}`}
                   />
                   <Chip
                     icon={<AttachMoney />}
-                    label={`${parseInt(tripData.budget).toLocaleString('vi-VN')} VND`}
+                    label={`${parseInt(tripData.budget || '0').toLocaleString('vi-VN')} VND`}
                   />
                   <Chip
                     icon={<People />}
@@ -562,39 +556,38 @@ const TripPlanner: React.FC = () => {
       />
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
 
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Stepper activeStep={activeStep} alternativeLabel>
-          {steps.map((label) => (
-            <Step key={label}>
-              <StepLabel>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
-      </Paper>
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Stepper activeStep={activeStep} alternativeLabel>
+            {steps.map((label) => (
+              <Step key={label}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
+        </Paper>
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 3, mb: 3 }}>
-            {Object.values(formErrors).length > 0 && (
-              <Alert severity="warning" sx={{ mb: 2 }}>
-                {Object.values(formErrors)[0]}
-              </Alert>
-            )}
-            {renderStepContent(activeStep)}
-          </Paper>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
+            <Paper sx={{ p: 3, mb: 3, minHeight: '400px' }}>
+              {Object.values(formErrors).length > 0 && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  {Object.values(formErrors)[0]}
+                </Alert>
+              )}
+              {renderStepContent(activeStep)}
+            </Paper>
 
-          <Paper sx={{ p: 2, position: 'sticky', bottom: 16 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Button disabled={activeStep === 0} onClick={handleBack}>
-                Quay lại
-              </Button>
-              <Box sx={{ display: 'flex', gap: 1 }}>
+            <Paper sx={{ p: 2, position: 'sticky', bottom: 16, zIndex: 10 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Button disabled={activeStep === 0} onClick={handleBack}>
+                  Quay lại
+                </Button>
                 <Button
                   variant="contained"
                   onClick={activeStep === steps.length - 1 ? handleSubmit : handleNext}
@@ -603,170 +596,159 @@ const TripPlanner: React.FC = () => {
                   {activeStep === steps.length - 1 ? 'Hoàn tất' : 'Tiếp theo'}
                 </Button>
               </Box>
-            </Box>
-          </Paper>
-        </Grid>
+            </Paper>
+          </Grid>
 
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Tóm tắt chuyến đi
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-              <Chip icon={<CalendarToday />} label={`${getTripDurationDays()} ngày`} />
-              <Chip icon={<Place />} label={`${destinations.length} điểm đến`} />
-              <Chip icon={<People />} label={`${tripData.travelers.length} người`} />
-              {tripData.budget && (
-                <Chip icon={<AttachMoney />} label={`${parseInt(tripData.budget || '0', 10).toLocaleString('vi-VN')} VND`} />
-              )}
-            </Box>
-            <Divider sx={{ mb: 2 }} />
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Điểm đến
-            </Typography>
-            <List dense>
-              {destinations.length === 0 && (
-                <ListItem>
-                  <ListItemText primary="Chưa có điểm đến" secondary="Thêm điểm đến ở bước 3" />
-                </ListItem>
-              )}
-              {destinations.map((d, i) => (
-                <ListItem key={`${d.name}-${i}`}>
-                  <ListItemIcon>
-                    <Place />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={d.name}
-                    secondary={`${new Date(d.arrivalDate).toLocaleDateString('vi-VN')} - ${new Date(d.departureDate).toLocaleDateString('vi-VN')}${d.activities?.length ? ` • ${d.activities.length} hoạt động` : ''}`}
-                  />
-                </ListItem>
-              ))}
-            </List>
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Ước tính chi phí hoạt động
-            </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 600 }}>
-              {getEstimatedCost().toLocaleString('vi-VN')} VND
-            </Typography>
-          </Paper>
-        </Grid>
-      </Grid>
-
-      {/* Destination Dialog */}
-      <Dialog
-        open={openDestinationDialog}
-        onClose={() => setOpenDestinationDialog(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          {editingDestination ? 'Chỉnh sửa điểm đến' : 'Thêm điểm đến mới'}
-        </DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Tên điểm đến"
-                value={newDestination.name}
-                onChange={(e) => setNewDestination({ ...newDestination, name: e.target.value })}
-                variant="outlined" // Thêm ở đây cho nhất quán
-              />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                fullWidth
-                label="Ngày đến"
-                type="date"
-                value={newDestination.arrivalDate}
-                onChange={(e) => setNewDestination({ ...newDestination, arrivalDate: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-                variant="outlined" // Thêm ở đây cho nhất quán
-              />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                fullWidth
-                label="Ngày đi"
-                type="date"
-                value={newDestination.departureDate}
-                onChange={(e) => setNewDestination({ ...newDestination, departureDate: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-                variant="outlined" // Thêm ở đây cho nhất quán
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>Hoạt động</Typography>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={() => setNewDestination({
-                  ...newDestination,
-                  activities: [...newDestination.activities, { name: '', description: '', time: '', cost: 0 }],
-                })}
-              >
-                Thêm hoạt động
-              </Button>
+          <Grid item xs={12} md={4}>
+            <Paper sx={{ p: 3, position: 'sticky', top: 80 }}>
+              <Typography variant="h6" gutterBottom>
+                Tóm tắt chuyến đi
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                <Chip icon={<CalendarToday />} label={`${getTripDurationDays()} ngày`} />
+                <Chip icon={<Place />} label={`${destinations.length} điểm đến`} />
+                <Chip icon={<People />} label={`${tripData.travelers.length} người`} />
+                {tripData.budget && (
+                  <Chip icon={<AttachMoney />} label={`${parseInt(tripData.budget || '0', 10).toLocaleString('vi-VN')} VND`} />
+                )}
+              </Box>
+              <Divider sx={{ mb: 2 }} />
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                Điểm đến
+              </Typography>
               <List dense>
-                {newDestination.activities.map((activity, idx) => (
-                  <ListItem key={idx} sx={{ pl: 0 }}>
-                    <Grid container spacing={1}>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          label="Tên hoạt động"
-                          value={activity.name}
-                          onChange={(e) => {
-                            const arr = [...newDestination.activities];
-                            arr[idx] = { ...arr[idx], name: e.target.value };
-                            setNewDestination({ ...newDestination, activities: arr });
-                          }}
-                          variant="outlined" // Thêm ở đây cho nhất quán
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          label="Thời gian"
-                          value={activity.time}
-                          onChange={(e) => {
-                            const arr = [...newDestination.activities];
-                            arr[idx] = { ...arr[idx], time: e.target.value };
-                            setNewDestination({ ...newDestination, activities: arr });
-                          }}
-                          variant="outlined" // Thêm ở đây cho nhất quán
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          label="Chi phí (VND)"
-                          type="number"
-                          value={activity.cost}
-                          onChange={(e) => {
-                            const arr = [...newDestination.activities];
-                            arr[idx] = { ...arr[idx], cost: parseInt(e.target.value || '0', 10) };
-                            setNewDestination({ ...newDestination, activities: arr });
-                          }}
-                          variant="outlined" // Thêm ở đây cho nhất quán
-                        />
-                      </Grid>
-                    </Grid>
+                {destinations.length === 0 && (
+                  <ListItem>
+                    <ListItemText primary="Chưa có điểm đến" secondary="Thêm điểm đến ở bước 3" />
+                  </ListItem>
+                )}
+                {destinations.map((d, i) => (
+                  <ListItem key={`${d.name}-${i}`}>
+                    <ListItemIcon>
+                      <Place />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={d.name}
+                      secondary={`${new Date(d.arrivalDate).toLocaleDateString('vi-VN')} - ${new Date(d.departureDate).toLocaleDateString('vi-VN')}`}
+                    />
                   </ListItem>
                 ))}
               </List>
-            </Grid>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                Ước tính chi phí hoạt động
+              </Typography>
+              <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                {getEstimatedCost().toLocaleString('vi-VN')} VND
+              </Typography>
+            </Paper>
           </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDestinationDialog(false)}>Hủy</Button>
-          <Button onClick={handleSaveDestination} variant="contained">
-            Lưu
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
+        </Grid>
+
+        <Dialog
+          open={openDestinationDialog}
+          onClose={() => setOpenDestinationDialog(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            {editingDestination ? 'Chỉnh sửa điểm đến' : 'Thêm điểm đến'}
+          </DialogTitle>
+          <DialogContent>
+            <Grid container spacing={2} sx={{ pt: 1 }}>
+              <Grid item xs={12}>
+                <Autocomplete
+                  id="destination-search-autocomplete"
+                  open={openSearch}
+                  onOpen={() => setOpenSearch(true)}
+                  onClose={() => setOpenSearch(false)}
+                  isOptionEqualToValue={(option, value) => option.name === value.name}
+                  getOptionLabel={(option) => option.name || ''}
+                  options={searchOptions}
+                  loading={searchLoading}
+                  onChange={(event, newValue) => {
+                    if (newValue) {
+                      setNewDestination({ ...newDestination, name: newValue.name });
+                    }
+                  }}
+                  onInputChange={(event, newInputValue) => {
+                    if (searchTimeoutRef.current) {
+                      clearTimeout(searchTimeoutRef.current);
+                    }
+                    if (newInputValue.length < 2) {
+                      setSearchOptions([]);
+                      return;
+                    }
+                    searchTimeoutRef.current = setTimeout(async () => {
+                      setSearchLoading(true);
+                      try {
+                        const response = await axios.get(
+                          `http://localhost:5000/api/destinations/search?q=${newInputValue}`
+                        );
+                        setSearchOptions(response.data.destinations || []);
+                      } catch (apiError) {
+                        console.error("Lỗi khi tìm kiếm điểm đến:", apiError);
+                        setSearchOptions([]);
+                      } finally {
+                        setSearchLoading(false);
+                      }
+                    }, 500);
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Tìm kiếm tên điểm đến..."
+                      variant="outlined"
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {searchLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                  renderOption={(props, option) => (
+                    <Box component="li" {...props} key={option._id}>
+                      {option.name} ({option.city})
+                    </Box>
+                  )}
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  fullWidth
+                  label="Ngày đến"
+                  type="date"
+                  value={newDestination.arrivalDate}
+                  onChange={(e) => setNewDestination({ ...newDestination, arrivalDate: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                  variant="outlined"
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  fullWidth
+                  label="Ngày đi"
+                  type="date"
+                  value={newDestination.departureDate}
+                  onChange={(e) => setNewDestination({ ...newDestination, departureDate: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                  variant="outlined"
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenDestinationDialog(false)}>Hủy</Button>
+            <Button onClick={handleSaveDestination} variant="contained">
+              Lưu
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Container>
     </>
   );
 };
