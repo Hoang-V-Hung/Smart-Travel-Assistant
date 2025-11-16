@@ -312,7 +312,146 @@ Trả về dưới dạng JSON hoặc markdown có cấu trúc rõ ràng.
       throw new Error(`Lỗi khi gợi ý điểm đến: ${error.response?.data?.error?.message || error.message}`);
     }
   }
+
+  // =========================================================================
+  // CÁC HÀM MỚI VÀ ĐÃ SỬA LỖI
+  // =========================================================================
+
+  /**
+   * [ĐÃ SỬA LỖI] Trích xuất thông tin chuyến bay từ tin nhắn
+   * @param {String} message - Tin nhắn của người dùng
+   * @returns {Promise<Object>} - Object chứa thông tin chuyến bay
+   */
+  async extractFlightInfo(message) {
+    const today = new Date().toISOString().split('T')[0];
+    const prompt = `
+      Phân tích câu sau đây của người dùng: "${message}".
+      Hôm nay là ngày ${today}.
+      Nhiệm vụ của bạn là trích xuất thông tin chuyến bay dưới dạng JSON.
+      Các thông tin cần trích xuất:
+      1. origin: Mã sân bay đi (ví dụ Sài Gòn/TPHCM -> SGN, Hà Nội -> HAN).
+      2. destination: Mã sân bay đến.
+      3. date: Ngày đi (YYYY-MM-DD).
+      4. returnDate: Ngày VỀ (YYYY-MM-DD). Chỉ trích xuất nếu người dùng đề cập đến "khứ hồi", "hai chiều", hoặc có ngày về cụ thể.
+
+      QUAN TRỌNG: Chỉ trả lời bằng một đối tượng JSON.
+      - Nếu là câu hỏi về chuyến bay, trả về: {"isFlightQuery": true, "origin": "...", "destination": "...", "date": "...", "returnDate": "..."} (returnDate có thể là null).
+      - Nếu không phải, trả về: {"isFlightQuery": false}.
+    `;
+
+    try {
+      const response = await axios.post(
+        `${this.baseURL}/chat/completions`,
+        {
+          model: this.model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0,
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const rawResponse = response.data.choices[0].message.content;
+      const jsonMatch = rawResponse.match(/{[\s\S]*}/);
+
+      if (jsonMatch && jsonMatch[0]) {
+        try {
+          return JSON.parse(jsonMatch[0]);
+        } catch (e) {
+          console.error("Lỗi khi parse JSON (sau khi trích xuất):", jsonMatch[0]);
+          return { isFlightQuery: false };
+        }
+      } else {
+        console.error("Không tìm thấy chuỗi JSON hợp lệ trong phản hồi của AI:", rawResponse);
+        return { isFlightQuery: false };
+      }
+    } catch (error) {
+      console.error('Lỗi trong hàm extractFlightInfo:', error.response?.data || error.message);
+      return { isFlightQuery: false };
+    }
+  }
+
+  /**
+   * Chat với ngữ cảnh chuyến bay MỘT CHIỀU
+   */
+  async chatWithFlightContext(message, conversationHistory, flightData) {
+    if (flightData.length === 0) {
+      const noFlightPrompt = `
+        Người dùng hỏi: "${message}".
+        Tôi đã tìm kiếm nhưng không tìm thấy chuyến bay nào phù hợp.
+        Hãy trả lời người dùng một cách tự nhiên rằng bạn không tìm thấy chuyến bay nào và gợi ý họ thử tìm ngày khác hoặc hành trình khác.
+      `;
+      return this.chat(noFlightPrompt, conversationHistory);
+    }
+
+    const flightContext = JSON.stringify(flightData, null, 2);
+    const enhancedPrompt = `
+      Bạn là một backend API chỉ trả về dữ liệu JSON. Người dùng vừa hỏi: "${message}".
+      Dưới đây là dữ liệu chuyến bay MỘT CHIỀU tôi đã tìm được:
+      ${flightContext}
+      
+      Nhiệm vụ: Dựa vào dữ liệu trên, tạo ra một chuỗi JSON hợp lệ.
+      Cấu trúc JSON:
+      {
+        "type": "flight_results",
+        "summary": "Một câu tóm tắt ngắn gọn...",
+        "flights": [
+          {
+            "airline": "...",
+            "departureTime": "YYYY-MM-DDTHH:mm:ss",
+            "arrivalTime": "YYYY-MM-DDTHH:mm:ss",
+            "duration": ...,
+            "price": ...
+          }
+        ]
+      }
+      QUAN TRỌNG: Chỉ trả về chuỗi JSON.
+    `;
+    
+    return this.chat(enhancedPrompt, conversationHistory);
+  }
+
+  /**
+   * [MỚI] Chat với ngữ cảnh chuyến bay KHỨ HỒI
+   */
+  async chatWithRoundTripContext(message, conversationHistory, roundTripData) {
+    if (roundTripData.length === 0) {
+      const noFlightPrompt = `
+        Người dùng hỏi: "${message}".
+        Tôi đã tìm kiếm nhưng không tìm thấy chuyến bay khứ hồi nào phù hợp.
+        Hãy trả lời người dùng một cách tự nhiên và gợi ý họ thử tìm ngày khác.
+      `;
+      return this.chat(noFlightPrompt, conversationHistory);
+    }
+
+    const context = JSON.stringify(roundTripData, null, 2);
+    const prompt = `
+        Bạn là một API chỉ trả về JSON. Người dùng hỏi: "${message}".
+        Dưới đây là dữ liệu chuyến bay KHỨ HỒI tôi đã tìm được:
+        ${context}
+
+        Nhiệm vụ: Dựa vào dữ liệu trên, tạo ra một chuỗi JSON hợp lệ.
+        JSON phải có cấu trúc:
+        {
+          "type": "roundtrip_flight_results",
+          "summary": "Một câu tóm tắt ngắn gọn cho chuyến bay khứ hồi...",
+          "flights": [
+            {
+              "price": "Tổng giá vé (dạng số)",
+              "departureFlight": { "airline": "...", "departureTime": "...", "arrivalTime": "...", "duration": ... },
+              "returnFlight": { "airline": "...", "departureTime": "...", "arrivalTime": "...", "duration": ... }
+            }
+          ]
+        }
+        QUAN TRỌNG: Chỉ trả về chuỗi JSON.
+      `;
+      
+    return this.chat(prompt, conversationHistory);
+  }
 }
 
 module.exports = new OpenAIService();
-
