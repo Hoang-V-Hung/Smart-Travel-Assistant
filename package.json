@@ -14,10 +14,19 @@
     "install-all": "npm run server:install && npm run client:install",
     "build": "cd client && npm run build"
   },
-  "keywords": ["travel", "ai", "assistant", "tourism", "planning"],
+  "keywords": [
+    "travel",
+    "ai",
+    "assistant",
+    "tourism",
+    "planning"
+  ],
   "author": "THHT Team",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.0"
+  },
+  "dependencies": {
+    "lucide-react": "^0.553.0"
   }
 }

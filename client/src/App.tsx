@@ -1,6 +1,7 @@
+// src/App.tsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles'; // Bỏ createTheme
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box } from '@mui/material';
 
@@ -13,72 +14,24 @@ import Dashboard from './pages/Dashboard';
 import TripPlanner from './pages/TripPlanner';
 import Destinations from './pages/Destinations';
 import AIAssistant from './pages/AIAssistant';
+import AIBot from './pages/AIBot';
+import TravelAdvisorSearch from './pages/TravelAdvisorSearch';
 
-// Theme - Travel Assistant Theme
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#667eea',
-      light: '#764ba2',
-      dark: '#5568d3',
-    },
-    secondary: {
-      main: '#f5576c',
-      light: '#f093fb',
-      dark: '#e91e63',
-    },
-    background: {
-      default: '#f5f5f5',
-    },
-  },
-  typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-    h1: {
-      fontSize: '2.5rem',
-      fontWeight: 700,
-    },
-    h2: {
-      fontSize: '2rem',
-      fontWeight: 600,
-    },
-    h4: {
-      fontWeight: 700,
-    },
-    h6: {
-      fontWeight: 600,
-    },
-  },
-  shape: {
-    borderRadius: 16,
-  },
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: 'none',
-          borderRadius: '12px',
-          fontWeight: 600,
-        },
-      },
-    },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          borderRadius: '16px',
-        },
-      },
-    },
-  },
-});
+// *** THAY ĐỔI CHÍNH Ở ĐÂY ***
+// Import theme từ file riêng
+import theme from './theme';
+
+// *** BỎ ĐI TOÀN BỘ PHẦN createTheme(...) ở đây ***
 
 function App() {
   return (
+    // Sử dụng theme đã import
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Router>
         <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
           <Navbar />
-          <Box component="main" sx={{ flexGrow: 1 }}>
+          <Box component="main" sx={{ flexGrow: 1, bgcolor: 'background.default' }}>
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
@@ -86,8 +39,10 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/trip-planner" element={<TripPlanner />} />
               <Route path="/destinations" element={<Destinations />} />
-              <Route path="/ai-assistant" element={<AIAssistant />} />
+              {/* <Route path="/ai-assistant" element={<AIAssistant />} /> */}
+              <Route path="/search-travel-advisor" element={<TravelAdvisorSearch />} />
             </Routes>
+            <AIBot />
           </Box>
         </Box>
       </Router>

@@ -1,3 +1,4 @@
+// src/components/Navbar.tsx
 import React, { useState } from 'react';
 import {
   AppBar,
@@ -32,12 +33,16 @@ import {
   Hotel,
   CloudQueue,
   Map,
+  TravelExplore,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { activeMenuItems, futureMenuItems } from '../config/navigation';
 import APIIntegrationStatus from './APIIntegrationStatus';
 
 const Navbar: React.FC = () => {
+  // ... (Giữ nguyên code state,
+  //      handleMenu, handleClose, handleDrawerToggle, handleLogout,
+  //      iconMap, menuItemsWithIcons, futureMenuItemsWithIcons) ...
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
@@ -45,7 +50,7 @@ const Navbar: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  const isAuthenticated = localStorage.getItem('token');
+  const isAuthenticated = !!localStorage.getItem('token'); // Dùng !! để đảm bảo là boolean
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -64,6 +69,10 @@ const Navbar: React.FC = () => {
     localStorage.removeItem('user');
     navigate('/');
     handleClose();
+    // Thêm: đóng cả mobile menu nếu đang mở
+    if (mobileOpen) {
+      setMobileOpen(false);
+    }
   };
 
   // Map icons cho menu items
@@ -72,13 +81,14 @@ const Navbar: React.FC = () => {
     'dashboard': <Dashboard />,
     'trip-planner': <FlightTakeoff />,
     'destinations': <Place />,
-    'ai-assistant': <SmartToy />,
+    'ai-assistant': <SmartToy />, // Vẫn giữ ở đây để lỡ có
     'flights': <FlightTakeoff />,
     'hotels': <Hotel />,
     'map': <Map />,
     'weather': <CloudQueue />,
     'reviews': <Place />,
     'transport': <Place />,
+    'search-travel-advisor': <TravelExplore />
   };
 
   // Tạo menu items với icons
@@ -92,6 +102,7 @@ const Navbar: React.FC = () => {
     icon: iconMap[item.path.replace('/', '')] || <Place />
   }));
 
+
   const drawer = (
     <Box sx={{ width: 280 }}>
       <List>
@@ -99,96 +110,113 @@ const Navbar: React.FC = () => {
         <Typography variant="subtitle2" sx={{ px: 2, py: 1, color: 'text.secondary', fontWeight: 'bold' }}>
           Tính năng chính
         </Typography>
-        {menuItemsWithIcons.map((item) => (
-          <ListItem
-            key={item.text}
-            onClick={() => {
-              navigate(item.path);
-              setMobileOpen(false);
-            }}
-            sx={{
-              cursor: 'pointer',
-              backgroundColor: location.pathname === item.path ? 'action.selected' : 'transparent',
-              '&:hover': {
-                backgroundColor: 'action.hover'
-              }
-            }}
-          >
-            <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText
-              primary={item.text}
-              secondary={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    {item.description}
-                  </Typography>
-                  {item.apiIntegration && (
-                    <APIIntegrationStatus
-                      provider={item.apiIntegration.provider}
-                      status={item.apiIntegration.status}
-                      endpoint={item.apiIntegration.endpoint}
-                    />
-                  )}
-                </Box>
-              }
-            />
-          </ListItem>
-        ))}
+        {menuItemsWithIcons.map((item) => {
+          // *** THÊM LOGIC KIỂM TRA AUTH CHO MOBILE ***
+          const isProtected = item.auth === true;
+          // === SỬA LẠI: Ẩn 'AI Assistant' (đã bị xóa khỏi mảng) và kiểm tra auth ===
+          if (isProtected && !isAuthenticated) {
+            return null; // Ẩn nếu cần đăng nhập mà chưa đăng nhập
+          }
+          // === KẾT THÚC SỬA ===
+          
+          return (
+            <ListItem
+              key={item.text}
+              onClick={() => {
+                navigate(item.path);
+                setMobileOpen(false);
+              }}
+              sx={{
+                cursor: 'pointer',
+                backgroundColor: location.pathname === item.path ? 'action.selected' : 'transparent',
+                '&:hover': {
+                  backgroundColor: 'action.hover'
+                }
+              }}
+            >
+              <ListItemIcon>{item.icon}</ListItemIcon>
+              <ListItemText
+                primary={item.text}
+                secondary={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      {item.description}
+                    </Typography>
+                    {item.apiIntegration && (
+                      <APIIntegrationStatus
+                        provider={item.apiIntegration.provider}
+                        status={item.apiIntegration.status}
+                        endpoint={item.apiIntegration.endpoint}
+                      />
+                    )}
+                  </Box>
+                }
+              />
+            </ListItem>
+          );
+        })}
 
         {/* Menu items sắp có (Coming Soon) */}
         <Typography variant="subtitle2" sx={{ px: 2, py: 1, color: 'text.secondary', fontWeight: 'bold', mt: 2 }}>
           Sắp ra mắt
         </Typography>
-        {futureMenuItemsWithIcons.map((item) => (
-          <ListItem
-            key={item.text}
-            onClick={() => {
-              if (!item.comingSoon) {
-                navigate(item.path);
-                setMobileOpen(false);
-              }
-            }}
-            sx={{
-              cursor: item.comingSoon ? 'not-allowed' : 'pointer',
-              opacity: item.comingSoon ? 0.6 : 1,
-              '&:hover': {
-                backgroundColor: item.comingSoon ? 'transparent' : 'action.hover'
-              }
-            }}
-          >
-            <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText
-              primary={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  {item.text}
-                  {item.comingSoon && (
-                    <Chip
-                      label="Sắp có"
-                      size="small"
-                      color="primary"
-                      variant="outlined"
-                      sx={{ fontSize: '0.7rem', height: 20 }}
-                    />
-                  )}
-                </Box>
-              }
-              secondary={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    {item.description}
-                  </Typography>
-                  {item.apiIntegration && (
-                    <APIIntegrationStatus
-                      provider={item.apiIntegration.provider}
-                      status={item.apiIntegration.status}
-                      endpoint={item.apiIntegration.endpoint}
-                    />
-                  )}
-                </Box>
-              }
-            />
-          </ListItem>
-        ))}
+        {futureMenuItemsWithIcons.map((item) => {
+          const isProtected = item.auth === true;
+          if (isProtected && !isAuthenticated) {
+            return null;
+          }
+
+          return (
+            <ListItem
+              key={item.text}
+              onClick={() => {
+                if (!item.comingSoon) {
+                  navigate(item.path);
+                  setMobileOpen(false);
+                }
+              }}
+              sx={{
+                cursor: item.comingSoon ? 'not-allowed' : 'pointer',
+                opacity: item.comingSoon ? 0.6 : 1,
+                '&:hover': {
+                  backgroundColor: item.comingSoon ? 'transparent' : 'action.hover'
+                }
+              }}
+            >
+              <ListItemIcon>{item.icon}</ListItemIcon>
+              <ListItemText
+                primary={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {item.text}
+                    {item.comingSoon && (
+                      <Chip
+                        label="Sắp có"
+                        size="small"
+                        color="primary"
+                        variant="outlined"
+                        sx={{ fontSize: '0.7rem', height: 20 }}
+                      />
+                    )}
+                  </Box>
+                }
+                secondary={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      {item.description}
+                    </Typography>
+                    {item.apiIntegration && (
+                      <APIIntegrationStatus
+                        provider={item.apiIntegration.provider}
+                        status={item.apiIntegration.status}
+                        endpoint={item.apiIntegration.endpoint}
+                      />
+                    )}
+                  </Box>
+                }
+              />
+            </ListItem>
+          );
+        })}
 
         {/* Authentication buttons */}
         <Divider sx={{ my: 2 }} />
@@ -238,10 +266,16 @@ const Navbar: React.FC = () => {
 
           {!isMobile && (
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {/* === SỬA LẠI: Xóa filter 'ai-assistant' vì đã bị xóa khỏi mảng === */}
             {menuItemsWithIcons
-              .filter(item => item.path !== '/dashboard') // Ẩn Dashboard khỏi thanh chính
-              .map((item) => (
-                (!item.auth || isAuthenticated) && (
+              .filter(item => item.path !== '/dashboard') 
+              .map((item) => {
+                const isProtected = item.auth === true;
+                if (isProtected && !isAuthenticated) {
+                   return null; // Ẩn nếu cần đăng nhập mà chưa đăng nhập
+                }
+
+                return (
                   <Button
                     key={item.text}
                     color="inherit"
@@ -254,8 +288,8 @@ const Navbar: React.FC = () => {
                   >
                     {item.text}
                   </Button>
-                )
-            ))}
+                );
+            })}
             </Box>
           )}
 

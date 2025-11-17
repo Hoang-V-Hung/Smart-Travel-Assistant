@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Container, Typography } from '@mui/material';
+import { gradients } from '../theme/branding';
 
 interface PageHeaderProps {
   title: string;
@@ -11,7 +12,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, icon }) => {
   return (
     <Box
       sx={{
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: gradients.primary,
         color: 'white',
         py: { xs: 4, md: 6 },
         mb: 3,

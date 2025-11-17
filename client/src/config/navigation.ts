@@ -1,3 +1,4 @@
+// src/config/navigation.ts
 // Cấu hình navigation cho Smart Travel Assistant
 // Dễ dàng thêm/sửa/xóa menu items và tích hợp API
 
@@ -54,7 +55,7 @@ export const activeMenuItems: MenuItem[] = [
     text: 'Điểm đến',
     path: '/destinations',
     icon: null as any,
-    auth: false,
+    auth: true, // <--- ĐÃ SỬA TỪ FALSE THÀNH TRUE
     description: 'Khám phá các điểm đến hấp dẫn',
     apiIntegration: {
       provider: 'Internal',
@@ -62,18 +63,31 @@ export const activeMenuItems: MenuItem[] = [
     }
   },
   {
-    text: 'AI Assistant',
-    path: '/ai-assistant',
-    icon: null as any,
+    text: 'Tra cứu KS, Nhà Hàng',
+    path: '/search-travel-advisor',
+    icon: null as any, // <-- THÊM DÒNG NÀY ĐỂ SỬA LỖI
+    description: 'Tìm KS, Nhà hàng (Travel-Advisor)',
     auth: true,
-    description: 'Trò chuyện với AI để được tư vấn',
-    apiIntegration: {
-      provider: 'OpenAI',
+    apiIntegration: { 
+      provider: 'Travel-Advisor', 
       status: 'ready',
-      endpoint: '/api/ai/chat'
-    }
-  }
+      endpoint: '/api/travel-advisor/search' }
+  },
+  // {
+  //   text: 'AI Assistant',
+  //   path: '/ai-assistant',
+  //   icon: null as any,
+  //   auth: true,
+  //   description: 'Trò chuyện với AI để được tư vấn',
+  //   apiIntegration: {
+  //     provider: 'OpenAI',
+  //     status: 'ready',
+  //     endpoint: '/api/ai/chat'
+  //   }
+  // }
 ];
+
+// ... (Phần còn lại của file giữ nguyên) ...
 
 // Menu items sắp có (cần tích hợp API)
 export const futureMenuItems: MenuItem[] = [

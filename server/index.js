@@ -6,7 +6,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const connectDB = require('./config/database');
-
+const destinationRoutes = require('./routes/destinationRoutes');
 // Load environment variables from .env file
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
@@ -19,14 +19,14 @@ if (process.env.MONGODB_URI) {
 }
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Middleware
 app.use(helmet());
 app.use(compression());
 app.use(morgan('combined'));
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: process.env.CLIENT_URL ,
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -44,7 +44,11 @@ app.use('/api/', limiter);
 app.use('/api/auth', require('./routes/auth')); // Authentication (cần thiết)
 app.use('/api/ai', require('./routes/ai')); // OpenAI/GPT API (Tính năng 1)
 app.use('/api/trips', require('./routes/trips')); // Quản lý kế hoạch du lịch
-// Routes cho Google Maps, Skyscanner, TripAdvisor sẽ được thêm sau khi tích hợp
+// geoapify
+app.use('/api/destinations', destinationRoutes);// Quản lý kế hoạch du lịch
+
+app.use('/api/places', require('./routes/openstreetmapRoutes')); // Travel Advisor API (hiện tại)
+app.use('/api/osm', require('./routes/openstreetmapRoutes')); // OpenStreetMap API - HOÀN TOÀN MIỄN PHÍ, KHÔNG CẦN API KEY
 
 // Health check
 app.get('/api/health', (req, res) => {
