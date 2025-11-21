@@ -452,6 +452,253 @@ Trả về dưới dạng JSON hoặc markdown có cấu trúc rõ ràng.
       
     return this.chat(prompt, conversationHistory);
   }
+
+  // =========================================================================
+  // SMART TRIP BUILDER - Tạo lịch trình thông minh với structured response
+  // =========================================================================
+
+  /**
+   * Tạo lịch trình thông minh từ yêu cầu tự nhiên
+   * @param {Object} params - Thông tin từ user
+   * @returns {Promise<Object>} Structured itinerary data
+   */
+  async createSmartItinerary(params) {
+    const {
+      destination,
+      startDate,
+      duration = 3,
+      budget = 5000000,
+      interests = [],
+      travelStyle = 'balanced'
+    } = params;
+
+    // Default startDate to tomorrow if not provided
+    const defaultStartDate = new Date();
+    defaultStartDate.setDate(defaultStartDate.getDate() + 7); // 1 tuần sau
+    const finalStartDate = startDate || defaultStartDate.toISOString().split('T')[0];
+
+    // Calculate dates
+    const dates = this.calculateDateRange(finalStartDate, duration);
+    const endDate = dates[dates.length - 1];
+    
+    // Import services for real-time data
+    const openstreetmapService = require('./openstreetmapService');
+    const placeImageService = require('./placeImageService');
+
+    const prompt = `
+Bạn là AI travel planner chuyên nghiệp. Tạo lịch trình du lịch chi tiết:
+
+**Thông tin chuyến đi:**
+- Điểm đến: ${destination}
+- Thời gian: ${duration} ngày (${finalStartDate} đến ${endDate})
+- Ngân sách: ${budget.toLocaleString('vi-VN')} VNĐ
+- Sở thích: ${interests.join(', ') || 'Không có'}
+- Phong cách: ${travelStyle}
+
+**Yêu cầu trả về JSON theo format SAU (QUAN TRỌNG):**
+{
+  "days": [
+    {
+      "day": 1,
+      "date": "${dates[0]}",
+      "activities": [
+        {
+          "time": "08:00",
+          "title": "Tên hoạt động",
+          "location": "Địa điểm cụ thể",
+          "description": "Mô tả ngắn gọn",
+          "cost": 500000,
+          "duration": 120,
+          "category": "sightseeing"
+        }
+      ]
+    }
+  ]
+}
+
+**Lưu ý:**
+- Mỗi ngày có 4-6 activities
+- Phân bổ hợp lý: sáng, trưa, chiều, tối
+- Cost phải realistic (trong budget)
+- Category: sightseeing, dining, entertainment, relaxation, shopping
+- CHỈ TRẢ VỀ JSON, KHÔNG TEXT KHÁC
+`;
+
+    try {
+      const response = await axios.post(
+        `${this.baseURL}/chat/completions`,
+        {
+          model: this.model,
+          messages: [
+            {
+              role: 'system',
+              content: 'Bạn là AI travel planner. CHỈ trả về JSON format, không text khác.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          max_tokens: 3000,
+          temperature: 0.7
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const rawResponse = response.data.choices[0].message.content;
+      
+      // Extract JSON from response
+      const jsonMatch = rawResponse.match(/{[\s\S]*}/);
+      if (!jsonMatch) {
+        throw new Error('AI không trả về JSON hợp lệ');
+      }
+
+      const aiData = JSON.parse(jsonMatch[0]);
+
+      // Fetch real-time data from APIs
+      console.log(`🔍 Fetching hotels & restaurants for ${destination}...`);
+      
+      let hotels = [];
+      let restaurants = [];
+      
+      try {
+        // Fetch hotels (top 5)
+        const hotelResults = await openstreetmapService.searchNearbyPlaces(
+          destination,
+          'hotel',
+          5
+        );
+        hotels = hotelResults.slice(0, 5).map(h => ({
+          id: h.place_id,
+          name: h.name,
+          location: h.vicinity || h.display_name,
+          rating: h.rating || 0,
+          photo: h.photo || null,
+          lat: h.lat,
+          lng: h.lng,
+          priceLevel: Math.floor(Math.random() * 3) + 1 // 1-3 (sẽ có logic tốt hơn sau)
+        }));
+        
+        // Fetch restaurants (top 8)
+        const restaurantResults = await openstreetmapService.searchNearbyPlaces(
+          destination,
+          'restaurant',
+          8
+        );
+        restaurants = restaurantResults.slice(0, 8).map(r => ({
+          id: r.place_id,
+          name: r.name,
+          location: r.vicinity || r.display_name,
+          cuisine: r.cuisine || 'Ẩm thực địa phương',
+          rating: r.rating || 0,
+          photo: r.photo || null,
+          priceRange: ['$', '$$', '$$$'][Math.floor(Math.random() * 3)],
+          lat: r.lat,
+          lng: r.lng
+        }));
+        
+        console.log(`✅ Found ${hotels.length} hotels, ${restaurants.length} restaurants`);
+      } catch (apiError) {
+        console.error('Error fetching places:', apiError.message);
+        // Continue without hotels/restaurants if API fails
+      }
+
+      return {
+        destination,
+        startDate: finalStartDate,
+        endDate,
+        budget,
+        days: aiData.days || [],
+        hotels,
+        restaurants,
+        attractions: []
+      };
+
+    } catch (error) {
+      console.error('Error creating smart itinerary:', error.message);
+      throw new Error(`Không thể tạo lịch trình: ${error.message}`);
+    }
+  }
+
+  /**
+   * Helper: Calculate date range
+   */
+  calculateDateRange(startDate, days) {
+    const dates = [];
+    const start = new Date(startDate);
+    
+    for (let i = 0; i < days; i++) {
+      const currentDate = new Date(start);
+      currentDate.setDate(start.getDate() + i);
+      dates.push(currentDate.toISOString().split('T')[0]);
+    }
+    
+    return dates;
+  }
+
+  /**
+   * Phân tích intent từ câu hỏi user (nâng cao)
+   * @param {String} message - Câu hỏi của user
+   * @returns {Promise<Object>} Intent data
+   */
+  async analyzeSmartIntent(message) {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const prompt = `
+Phân tích câu hỏi: "${message}"
+Hôm nay là: ${today}
+
+Trả về JSON:
+{
+  "intent": "plan_trip" | "find_hotel" | "find_restaurant" | "find_flight" | "get_info" | "chat",
+  "destination": "tên điểm đến hoặc null",
+  "startDate": "YYYY-MM-DD hoặc null",
+  "duration": số ngày hoặc null,
+  "budget": số tiền hoặc null,
+  "interests": ["beach", "food", ...] hoặc [],
+  "needsMoreInfo": true/false,
+  "followUpQuestion": "câu hỏi cần hỏi thêm nếu thiếu info"
+}
+
+CHỈ TRẢ VỀ JSON.
+`;
+
+    try {
+      const response = await axios.post(
+        `${this.baseURL}/chat/completions`,
+        {
+          model: this.model,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 500,
+          temperature: 0.3
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const rawResponse = response.data.choices[0].message.content;
+      const jsonMatch = rawResponse.match(/{[\s\S]*}/);
+      
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+
+      return { intent: 'chat', needsMoreInfo: false };
+
+    } catch (error) {
+      console.error('Error analyzing intent:', error.message);
+      return { intent: 'chat', needsMoreInfo: false };
+    }
+  }
 }
 
 module.exports = new OpenAIService();

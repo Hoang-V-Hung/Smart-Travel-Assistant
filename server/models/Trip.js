@@ -1,5 +1,7 @@
+// [FILE: models/Trip.js]
 const mongoose = require('mongoose');
 
+// Schema cho địa điểm (giữ nguyên để tương thích)
 const destinationSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -13,6 +15,23 @@ const destinationSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
+  hotels: {
+    type: [String], 
+    default: []
+  },
+  
+  // 2. Đổi type thành [String]
+  restaurants: {
+    type: [String],
+    default: []
+  },
+  
+  // 3. Đổi type thành [String]
+  attractions: {
+    type: [String], 
+    default: []
+  },
+  // Các trường cũ
   accommodation: {
     name: String,
     address: String,
@@ -26,11 +45,31 @@ const destinationSchema = new mongoose.Schema({
     cost: Number,
     location: String
   }],
-  attractions: [{
+  linkedAttractions: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Attraction'
   }],
   notes: String
+});
+
+// === SCHEMA MỚI: Chi tiết hoạt động ===
+const activityDetailSchema = new mongoose.Schema({
+  time: String,
+  type: String, // 'meal', 'attraction', 'checkin', 'checkout'
+  title: String,
+  description: String,
+  location: String,
+  duration: String,
+  cost: Number,
+  selected: { type: Boolean, default: true }
+});
+
+// === SCHEMA MỚI: Lịch trình theo ngày ===
+const itineraryDaySchema = new mongoose.Schema({
+  day: Number,
+  date: Date,
+  weather: Object,
+  activities: [activityDetailSchema]
 });
 
 const tripSchema = new mongoose.Schema({
@@ -40,6 +79,10 @@ const tripSchema = new mongoose.Schema({
     trim: true
   },
   description: {
+    type: String,
+    trim: true
+  },
+  tripDetails: {
     type: String,
     trim: true
   },
@@ -56,12 +99,44 @@ const tripSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
+
+  origin: { type: String, default: '' }, // Điểm xuất phát
+  
+  transportMode: {
+    type: String,
+    enum: ['personal', 'flight'],
+    default: 'personal'
+  },
+
+  flightDetails: {
+    airline: String,       // Hãng bay
+    departureTime: Date,   // Ngày đi
+    returnTime: Date,      // Ngày về (null nếu là 1 chiều)
+    price: Number,         // Giá vé
+    currency: { type: String, default: 'VND' }
+  },
+  
   destinations: [destinationSchema],
+
+  // === TRƯỜNG MỚI: Lưu lịch trình chi tiết ===
+  itinerary: [itineraryDaySchema],
+
+  // === CẬP NHẬT: Budget có breakdown chi tiết ===
   budget: {
     total: Number,
     spent: { type: Number, default: 0 },
-    currency: { type: String, default: 'VND' }
+    currency: { type: String, default: 'VND' },
+    // Chi tiết các hạng mục chi phí
+    breakdown: {
+      flights: { type: Number, default: 0 },       // Vé máy bay
+      accommodation: { type: Number, default: 0 }, // Khách sạn
+      food: { type: Number, default: 0 },          // Ăn uống
+      activities: { type: Number, default: 0 },    // Hoạt động vui chơi
+      transport: { type: Number, default: 0 },     // Di chuyển
+      others: { type: Number, default: 0 }         // Khác
+    }
   },
+
   travelers: [{
     name: String,
     email: String,
@@ -106,7 +181,6 @@ tripSchema.virtual('duration').get(function() {
   return Math.ceil((this.endDate - this.startDate) / (1000 * 60 * 60 * 24));
 });
 
-// Update average rating when reviews change
 tripSchema.pre('save', function(next) {
   if (this.reviews && this.reviews.length > 0) {
     const totalRating = this.reviews.reduce((sum, review) => sum + review.rating, 0);

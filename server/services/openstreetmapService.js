@@ -127,8 +127,8 @@ const autocomplete = async (query) => {
  * @param {number} radius - Bán kính tìm kiếm (mét), mặc định 2000m
  * @returns {Promise<Array>} Danh sách địa điểm
  */
-const searchNearby = async (lat, lng, type = 'hotels', radius = 2000) => {
-  console.log('🔍 OSM Overpass - Searching nearby:', { lat, lng, type, radius });
+const searchNearby = async (lat, lng, type = 'hotels', radius = 2000, limit = 20) => {
+  console.log('🔍 OSM Overpass - Searching nearby:', { lat, lng, type, radius, limit });
 
   const tags = typeMapping[type] || typeMapping.hotels;
   
@@ -174,7 +174,7 @@ const searchNearby = async (lat, lng, type = 'hotels', radius = 2000) => {
   }
 
   query += `);
-out center meta;
+out center meta ${limit};
 `;
 
   try {
