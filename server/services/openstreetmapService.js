@@ -87,7 +87,7 @@ const autocomplete = async (query) => {
     format: 'json',
     addressdetails: 1,
     limit: 10,
-    countrycodes: 'vn', // Giới hạn tìm kiếm trong Việt Nam (có thể bỏ nếu muốn toàn cầu)
+    // countrycodes: 'vn', // Giới hạn tìm kiếm trong Việt Nam (có thể bỏ nếu muốn toàn cầu)
     'accept-language': 'vi',
   };
 
@@ -189,7 +189,18 @@ out center meta ${limit};
     console.log(`✅ Found ${elements.length} places from Overpass`);
 
     // Convert elements thành places và normalize
+    // Convert elements thành places và normalize
     const placesPromises = elements.map(async (element) => {
+      // FIX: Trích xuất địa chỉ từ tags của Overpass
+      const addressFromTags = {
+        house_number: element.tags?.['addr:housenumber'],
+        road: element.tags?.['addr:street'],
+        suburb: element.tags?.['addr:suburb'] || element.tags?.['addr:ward'] || element.tags?.['addr:district'],
+        city: element.tags?.['addr:city'] || element.tags?.['addr:province'],
+        town: element.tags?.['addr:town'],
+        village: element.tags?.['addr:village']
+      };
+
       const place = {
         id: element.id,
         lat: element.lat || element.center?.lat,
@@ -197,7 +208,8 @@ out center meta ${limit};
         name: element.tags?.name,
         tags: element.tags,
         type: element.type,
-        address: {}, // Overpass không có address chi tiết
+        address: addressFromTags, // Đã map dữ liệu vào đây thay vì để rỗng
+        display_name: element.tags?.name // Fallback tên nếu cần
       };
       
       // Lấy ảnh cho địa điểm

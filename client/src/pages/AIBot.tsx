@@ -1291,9 +1291,15 @@ const AIBot: React.FC = () => {
       timestamp: new Date(),
       suggestions: [
         'Gợi ý điểm đến cho chuyến du lịch 3 ngày',
-        'Lập kế hoạch du lịch Hà Nội',
+        'Lập kế hoạch du lịch',
         'Khách sạn tốt ở TP.HCM',
         'Món ăn ngon ở Đà Nẵng',
+        'Chi phí đi Phú Quốc 4 ngày 3 đêm',
+      'Tạo lịch trình đi Sapa cho cặp đôi',
+      'Địa điểm du lịch gần Hà Nội',
+      'Homestay đẹp ở Hội An',
+      'Vé máy bay giá rẻ đi Quy Nhơn',
+      'Thời tiết Nha Trang cuối tuần này'
       ],
     },
   ]);
@@ -2044,21 +2050,43 @@ const AIBot: React.FC = () => {
           {messages[messages.length - 1]?.suggestions && !loading && (
             <Box sx={{ p: 2, borderTop: '1px solid rgba(0,0,0,0.08)', background: '#f8f9fa' }}>
               <Typography variant="subtitle2" gutterBottom sx={{ mb: 1.5, color: '#666' }}>💡 Gợi ý cho bạn:</Typography>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {messages[messages.length - 1].suggestions?.map((suggestion, index) => (
-                  <Chip
-                    key={index}
-                    label={suggestion}
-                    onClick={() => handleSuggestionClick(suggestion)}
-                    sx={{
-                      background: 'white',
-                      border: '1px solid #e0e0e0',
-                      '&:hover': { background: gradients.primary, color: 'white', border: 'none', transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'},
-                      transition: 'all 0.3s ease',
-                    }}
-                  />
-                ))}
-              </Box>
+              <Box 
+  sx={{ 
+    display: 'grid', 
+    gridTemplateRows: 'repeat(2, min-content)', // Quy định cứng 2 dòng
+    gridAutoFlow: 'column',    // Dàn các phần tử theo cột (để tràn sang ngang)
+    gap: 1.5,                  // Khoảng cách giữa các chip
+    overflowX: 'auto',         // Bật thanh cuộn ngang
+    py: 0.5,                   // Padding dọc nhỏ để không bị cắt shadow
+    px: 0.5,
+    // Tùy chỉnh thanh cuộn cho đẹp (mảnh và mờ)
+    '&::-webkit-scrollbar': { height: '4px' },
+    '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '4px' },
+    '&::-webkit-scrollbar-track': { background: 'transparent' },
+    scrollBehavior: 'smooth'
+  }}
+>
+  {messages[messages.length - 1].suggestions?.map((suggestion, index) => (
+    <Chip
+      key={index}
+      label={suggestion}
+      onClick={() => handleSuggestionClick(suggestion)}
+      sx={{
+        background: 'white',
+        border: '1px solid #e0e0e0',
+        whiteSpace: 'nowrap', // <--- QUAN TRỌNG: Giữ text trên 1 dòng
+        '&:hover': { 
+          background: gradients.primary, 
+          color: 'white', 
+          border: 'none', // Sửa border thành none để tránh nhảy layout
+          transform: 'translateY(-2px)', 
+          boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+        },
+        transition: 'all 0.3s ease',
+      }}
+    />
+  ))}
+</Box>
             </Box>
           )}
 

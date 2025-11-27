@@ -43,6 +43,7 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 import { gradients, brandColors } from '../theme/branding';
+import { useNavigate } from 'react-router-dom';
 
 interface Destination {
   _id: string;
@@ -75,6 +76,7 @@ const Destinations: React.FC = () => {
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
   const [tabValue, setTabValue] = useState(0);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const navigate = useNavigate();
 
   const categories = [
     { value: '', label: 'Tất cả', icon: '💠 ' },
@@ -885,9 +887,14 @@ return (
             <Button onClick={() => setSelectedDestination(null)} sx={{ borderRadius: 2 }}>
               Đóng
             </Button>
-            <Button
+            {/* <Button
               variant="contained"
               startIcon={<Directions />}
+              onClick={() => {
+                navigate('/trip-planner', { 
+                  state: { initialDestination: selectedDestination } 
+                });
+              }}
               sx={{
                 px: 3,
                 py: 1,
@@ -897,7 +904,7 @@ return (
               }}
             >
               Thêm vào kế hoạch
-            </Button>
+            </Button> */}
           </DialogActions>
           {/* =================================== */}
           {/* KẾT THÚC SỬA MÀU SẮC */}

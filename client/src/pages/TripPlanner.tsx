@@ -11,9 +11,10 @@ import {
   LocationOn, Hotel, Restaurant, Attractions, CalendarMonth,
   AttachMoney, Description, Schedule
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { gradients, brandColors } from '../theme/branding';
+
 
 // ============================================
 // CUSTOM DEBOUNCE HOOK
@@ -353,6 +354,7 @@ const TripPlanner: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [highestStepVisited, setHighestStepVisited] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const location = useLocation();
   
   // Main Data State
   const [tripData, setTripData] = useState({
@@ -370,6 +372,26 @@ const TripPlanner: React.FC = () => {
   });
 
   const [destinations, setDestinations] = useState<TripDestination[]>([]);
+
+  useEffect(() => {
+    if (location.state && location.state.initialDestination) {
+      const initDest = location.state.initialDestination;
+
+      // Tự động thêm vào danh sách điểm đến
+      setDestinations([{
+        name: initDest.name,
+        arrivalDate: '', // Người dùng tự chọn sau
+        departureDate: '',
+        hotels: [],
+        restaurants: [],
+        attractions: []
+      }]);
+
+      // Tự động nhảy sang Bước 2 (Điểm đến) để người dùng thấy ngay
+      setActiveStep(2);
+      setHighestStepVisited(2);
+    }
+  }, [location]);
   
   // Flight Search State
   const [availableFlights, setAvailableFlights] = useState<FlightDetails[]>([]);
